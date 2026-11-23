@@ -1,19 +1,11 @@
-// Decimal strings -> exact rational numbers. No binary floating-point arithmetic for money.
-export function decimal(value, { positive = false } = {}) {
-  const s = String(value ?? '');
-  if (!/^\d{1,12}(?:\.\d{1,6})?$/.test(s)) throw new Error('INVALID_DECIMAL');
-  const [whole, fraction = ''] = s.split('.');
-  const n = BigInt(whole + fraction), d = 10n ** BigInt(fraction.length);
-  if (positive && n === 0n) throw new Error('INVALID_DECIMAL');
-  return { n, d };
-}
-export function validMarkup(value) {
-  try { const { n, d } = decimal(value); return n <= 1000n * d; } catch { return false; }
-}
+import { decimal, inRange, minorInteger } from '../utils/decimal.js';
+export { decimal } from '../utils/decimal.js';
+export function validMarkup(value, range = {}) { return inRange(value, range.min ?? '0', range.max ?? '1000'); }
 export function pricingConfig(env = process.env) {
-  const config = { rate: env.RUB_TO_UZS_RATE || null, markup: env.DEFAULT_MARKUP_PERCENT || '0', rounding: env.ROUNDING_INCREMENT_UZS || '1', overrides: {}, errors: [] };
+  const config = { rate: env.RUB_TO_UZS_RATE || null, markup: env.DEFAULT_MARKUP_PERCENT || '20', rounding: env.ROUNDING_INCREMENT_UZS || '1000', overrides: {}, minMarkup: env.MARKUP_MIN_PERCENT || '0', maxMarkup: env.MARKUP_MAX_PERCENT || '1000', errors: [] };
   try { decimal(config.rate, { positive: true }); } catch { config.errors.push('RUB_TO_UZS_RATE'); }
-  if (!validMarkup(config.markup)) config.errors.push('DEFAULT_MARKUP_PERCENT');
+  if (!inRange(config.minMarkup, '0', config.maxMarkup) || !inRange(config.maxMarkup, '0', '100000')) config.errors.push('MARKUP_RANGE');
+  if (!validMarkup(config.markup, { min: config.minMarkup, max: config.maxMarkup })) config.errors.push('DEFAULT_MARKUP_PERCENT');
   try { const { n, d } = decimal(config.rounding, { positive: true }); if (n * 100n % d) throw new Error(); } catch { config.errors.push('ROUNDING_INCREMENT_UZS'); }
   try {
     const overrides = JSON.parse(env.PRODUCT_MARKUP_OVERRIDE || '{}');
@@ -36,5 +28,28 @@ export function sellingPrice(supplierPriceMinor, config, product, settings = {},
     const totalMinor = unitMinor * BigInt(quantity);
     if (totalMinor > BigInt(Number.MAX_SAFE_INTEGER)) return null;
     return { unitMinor: Number(unitMinor), totalMinor: Number(totalMinor), currency: 'UZS', rate: config.rate, markup: String(markup), rounding: config.rounding };
+  } catch { return null; }
+}
+
+export const CALCULATION_VERSION = 'ai-subs-pricing-v3.1';
+export function calculatePrice({ supplierPriceMinor, quantity = 1, rate, markup, buffer = '0', rounding = '1000', markupSource }) {
+  if (!Number.isSafeInteger(supplierPriceMinor) || supplierPriceMinor < 0 || !Number.isSafeInteger(quantity) || quantity < 1 || quantity > 99) return null;
+  try {
+    const r = { n: BigInt(rate.numerator), d: BigInt(rate.denominator) };
+    if (r.n <= 0n || r.d <= 0n) return null;
+    const m = decimal(markup), b = decimal(buffer), step = decimal(rounding, { positive: true });
+    if (step.n * 100n % step.d !== 0n) return null;
+    const increment = step.n * 100n / step.d;
+    const convertedN = BigInt(supplierPriceMinor) * r.n, convertedD = r.d;
+    const bufferedN = convertedN * (100n * b.d + b.n), bufferedD = convertedD * 100n * b.d;
+    const finalN = bufferedN * (100n * m.d + m.n), finalD = bufferedD * 100n * m.d;
+    const unit = (finalN + finalD * increment - 1n) / (finalD * increment) * increment;
+    return { supplierPriceMinor, supplierCurrency: 'RUB', currency: 'UZS', quantity,
+      convertedCostMinor: minorInteger((convertedN + convertedD - 1n) / convertedD),
+      convertedCostExact: { numerator: String(convertedN), denominator: String(convertedD) },
+      bufferedCostMinor: minorInteger((bufferedN + bufferedD - 1n) / bufferedD),
+      unitMinor: minorInteger(unit), totalMinor: minorInteger(unit * BigInt(quantity)),
+      markup: String(markup), markupSource, fxBufferPercent: String(buffer), rounding: String(rounding),
+      rate: `${rate.rate}/${rate.nominal}`, exchangeRate: { ...rate }, calculationVersion: CALCULATION_VERSION };
   } catch { return null; }
 }

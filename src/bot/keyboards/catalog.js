@@ -2,17 +2,17 @@ import { randomBytes } from 'node:crypto';
 // Opaque, user-bound, expiring tokens keep Unicode/long supplier IDs out of callback_data.
 export class CallbackStore {
   #items = new Map();
-  constructor({ now = Date.now, limit = 10000, ttl = 15 * 60 * 1000 } = {}) { this.now = now; this.limit = limit; this.ttl = ttl; }
+  constructor({ now = Date.now, limit = 10000, ttl = 15 * 60 * 1000, prefix = 'cat' } = {}) { this.now = now; this.limit = limit; this.ttl = ttl; this.prefix = prefix; }
   put(user, route) {
     if (this.#items.size >= this.limit) this.#items.delete(this.#items.keys().next().value);
     const token = randomBytes(12).toString('base64url');
     this.#items.set(token, { user: String(user), route, expires: this.now() + this.ttl });
-    return `cat:${token}`;
+    return `${this.prefix}:${token}`;
   }
   get(user, data) {
-    if (!/^cat:[A-Za-z0-9_-]{16}$/.test(data)) return null;
-    const item = this.#items.get(data.slice(4));
-    if (!item || item.expires <= this.now()) { this.#items.delete(data.slice(4)); return null; }
+    if (!new RegExp(`^${this.prefix}:[A-Za-z0-9_-]{16}$`).test(data)) return null;
+    const item = this.#items.get(data.slice(this.prefix.length + 1));
+    if (!item || item.expires <= this.now()) { this.#items.delete(data.slice(this.prefix.length + 1)); return null; }
     return item.user === String(user) ? item.route : null;
   }
 }

@@ -25,7 +25,7 @@ function harness() {
     getGamesCatalog: async () => { if (state.gameFailure) throw new LightStoreError('HTTP_ERROR', 403); return adaptGamesCatalog(state.games); },
     getGameDetails: async p => adaptGameDetails({ steam_games: steam, gift_cards: gift, telegram, mobile_games: mobile }[p.kind], p),
   };
-  const pricing = pricingConfig({ RUB_TO_UZS_RATE: '100' });
+  const pricing = pricingConfig({ RUB_TO_UZS_RATE: '100', DEFAULT_MARKUP_PERCENT: '0', ROUNDING_INCREMENT_UZS: '1' });
   return { state, supplier, service: new CatalogService(supplier, pricing), pricing };
 }
 test('atomic sync, unique supplier IDs and concurrent synchronization never duplicate records', async () => {

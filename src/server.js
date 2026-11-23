@@ -1,3 +1,7 @@
+import { ExchangeRateService } from './services/exchange-rate.service.js';
+import { PricingService } from './services/pricing/pricing.service.js';
+import { AdminPricingService } from './services/pricing/admin-pricing.service.js';
+import { CheckoutService } from './services/checkout.service.js';
 import { CatalogService } from './services/catalog.service.js';
 import mongoose from 'mongoose';
 import { createApp } from './app.js';
@@ -8,6 +12,7 @@ import { LightStoreService } from './services/lightstore.service.js';
 import { logFailure } from './utils/errors.js';
 
 let catalogTimer;
+let exchangeRates;
 let server;
 let bot;
 let botReady = false;
@@ -17,6 +22,7 @@ async function shutdown(code = 0) {
   if (stopping) return;
   stopping = true;
   clearInterval(catalogTimer);
+  exchangeRates?.stop();
   botReady = false;
   const deadline = setTimeout(() => process.exit(1), 10000);
   deadline.unref();
@@ -41,14 +47,22 @@ try {
   startupStage = 'database';
   await connectDatabase(config.mongodbUri);
   const supplier = new LightStoreService(config.supplier);
-  const catalog = new CatalogService(supplier, config.pricing);
-  if (config.pricing.errors.length) console.warn(JSON.stringify({ event: 'catalog_pricing_disabled', fields: config.pricing.errors }));
+  exchangeRates = new ExchangeRateService(config.fx);
+  await exchangeRates.init();
+  const pricing = new PricingService(config.pricing, exchangeRates);
+  await pricing.init();
+  exchangeRates.start();
+  const adminPricing = new AdminPricingService(pricing, config.adminTelegramId);
+  const checkout = new CheckoutService(pricing, supplier);
+  const catalog = new CatalogService(supplier, config.pricing, pricing);
+  if (config.fx.errors.length) console.warn(JSON.stringify({ event: 'fx_config_invalid', fields: config.fx.errors }));
+  if (config.pricing.errors.filter(e => e !== 'RUB_TO_UZS_RATE').length) console.warn(JSON.stringify({ event: 'catalog_pricing_disabled', fields: config.pricing.errors }));
   const syncCatalog = () => catalog.sync().catch(error => logFailure('catalog_sync_failed', error));
   void syncCatalog();
   catalogTimer = setInterval(() => void syncCatalog(), 5 * 60 * 1000);
   catalogTimer.unref();
   startupStage = 'telegram';
-  bot = createBot({ token: config.telegramBotToken, adminTelegramId: config.adminTelegramId, supplier, catalog });
+  bot = createBot({ token: config.telegramBotToken, adminTelegramId: config.adminTelegramId, supplier, catalog, adminPricing, checkout });
   // Callback means getMe succeeded, not that every future poll will succeed.
   // launch() remains pending during polling; never await it before serving health.
   void bot.launch({ allowedUpdates: ['message', 'callback_query'] }, () => {

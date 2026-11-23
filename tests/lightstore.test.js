@@ -83,3 +83,14 @@ test('Gemini AI Plus duration matching avoids wrong plans and 16/36-month varian
     assert.equal(findGeminiSixMonthOffers([{ title, variants: [{ title: 'test' }] }]).length, 0, title);
   }
 });
+
+test('checkout force reads bypass a valid supplier cache and return changed prices', async () => {
+  let clock = 1000, calls = 0;
+  const data = structuredClone(fixture);
+  const service = new LightStoreService(config, { now: () => clock, sleep: async ms => { clock += ms; }, fetchImpl: async () => { calls++; return response(data); } });
+  const initial = await service.getCatalogSnapshot();
+  data.categories[0].products[0].variants[0].price += 1000;
+  assert.equal((await service.getCatalogSnapshot()).variants[0].supplierPriceMinor, initial.variants[0].supplierPriceMinor);
+  const fresh = await service.getCatalogSnapshot({ force: true });
+  assert.equal(fresh.variants[0].supplierPriceMinor, initial.variants[0].supplierPriceMinor + 1000); assert.equal(calls, 2);
+});

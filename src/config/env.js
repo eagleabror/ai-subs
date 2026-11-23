@@ -1,3 +1,4 @@
+import { fxConfig } from './fx.js';
 import { pricingConfig } from '../services/pricing.service.js';
 export class ConfigurationError extends Error {
   constructor(issues) {
@@ -22,7 +23,7 @@ export function loadSupplierConfig(env = process.env) {
     issues.push('LIGHTSTORE_TIMEOUT_MS 100–60000 oralig‘ida bo‘lishi kerak');
   }
   if ((env.AUTO_PURCHASE_ENABLED ?? 'false') !== 'false') {
-    issues.push('Phase 1/2 uchun AUTO_PURCHASE_ENABLED faqat false bo‘lishi mumkin');
+    issues.push('Phase 1/2/3 uchun AUTO_PURCHASE_ENABLED faqat false bo‘lishi mumkin');
   }
   if (issues.length) throw new ConfigurationError(issues);
   return Object.freeze({ apiKey, baseUrl: baseUrl.href.replace(/\/$/, ''), timeoutMs });
@@ -49,5 +50,6 @@ export function loadConfig(env = process.env) {
     port,
     supplier,
     pricing: pricingConfig(env),
+    fx: fxConfig(env),
   });
 }

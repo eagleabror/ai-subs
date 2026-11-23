@@ -3,18 +3,19 @@ import { MENU } from '../keyboards/main.js';
 import { formatMoney } from '../../utils/money.js';
 const ROOT = { view: 'categories', page: 0 };
 const NOTICE = 'Xarid hali yoqilmagan. Pul yechilmaydi.';
-export function registerCatalog(bot, catalog) {
+export function registerCatalog(bot, catalog, checkoutPanel = null) {
   const callbacks = new CallbackStore();
   const searchPending = new Map();
   bot.use((ctx, next) => {
     const text = ctx.message?.text;
-    if (text && (text.startsWith('/') || Object.values(MENU).includes(text))) searchPending.delete(ctx.from.id);
+    if (ctx.callbackQuery || (text && (text.startsWith('/') || Object.values(MENU).includes(text)))) searchPending.delete(ctx.from.id);
     return next();
   });
   async function render(ctx, route, editing = false) {
     const button = (text, next) => ({ text: shortText(text), callback_data: callbacks.put(ctx.from.id, next) });
     const back = next => [button('⬅️ Orqaga', next)];
     let text, rows = [];
+    if (route.view === 'checkout' && checkoutPanel) return checkoutPanel.create(ctx, route.variant, route.quantity);
     if (route.view === 'categories') {
       const result = await catalog.categories(route.page);
       text = `🛒 Mahsulot kategoriyalari (${result.page + 1}/${result.pages})\n${NOTICE}`;
@@ -57,6 +58,7 @@ export function registerCatalog(bot, catalog) {
         if (detail.quantity > 1) controls.push(button('➖', { ...route, quantity: detail.quantity - 1 }));
         if (detail.quantity < maximum) controls.push(button('➕', { ...route, quantity: detail.quantity + 1 }));
         if (controls.length) rows.push(controls);
+        if (checkoutPanel) rows.push([button('🧪 Sinov buyurtmasi', { view: 'checkout', variant: v._id, quantity: detail.quantity })]);
       }
       text += `\n\n${NOTICE}\nBu bosqichda shaxsiy ma’lumot kiritish talab qilinmaydi.`;
       rows.push(back(route.back || ROOT));

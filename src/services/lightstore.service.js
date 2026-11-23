@@ -63,17 +63,17 @@ export class LightStoreService {
     this.#sleep = sleep;
   }
   async getCatalog() { return parseCatalog(await this.#get('/catalog', adaptSubscriptions)); }
-  async getCatalogSnapshot() { return adaptSubscriptions(await this.#get('/catalog', adaptSubscriptions)); }
+  async getCatalogSnapshot({ force = false } = {}) { return adaptSubscriptions(await this.#get('/catalog', adaptSubscriptions, force)); }
   async getGamesCatalog() { return adaptGamesCatalog(await this.#get('/games/catalog', adaptGamesCatalog)); }
-  async getGameDetails(product) {
+  async getGameDetails(product, { force = false } = {}) {
     const paths = { steam_games: 'game', gift_cards: 'brand', telegram: 'mobile', mobile_games: 'mobile' };
     if (!Object.hasOwn(paths, product.kind) || !product.supplierProductId) throw new LightStoreError('INVALID_SCHEMA');
     const path = `/games/${paths[product.kind]}/${encodeURIComponent(product.supplierProductId)}`;
-    return adaptGameDetails(await this.#get(path, data => adaptGameDetails(data, product)), product);
+    return adaptGameDetails(await this.#get(path, data => adaptGameDetails(data, product), force), product);
   }
-  async #get(path, validate) {
+  async #get(path, validate, force = false) {
     const cached = this.#cache.get(path);
-    if (cached && cached.expires > this.#now()) return structuredClone(cached.data);
+    if (!force && cached && cached.expires > this.#now()) return structuredClone(cached.data);
     if (this.#retryUntil > this.#now()) throw new LightStoreError('HTTP_ERROR', 429);
     if (!this.#pending.has(path)) {
       // All reads share one queue: 1 request / 1.1 seconds, below the documented 60/min.

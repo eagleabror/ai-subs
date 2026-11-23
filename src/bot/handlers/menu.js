@@ -9,6 +9,6 @@ export function registerMenu(bot, { users }) {
     return ctx.reply(`Balansingiz: ${formatMoney(wallet.balanceMinor, wallet.currency)}\nBalansni to‘ldirish va pul yechish hali yoqilmagan.`, backKeyboard());
   });
   bot.hears(MENU.referral, (ctx) => ctx.reply('Referal dasturi keyingi bosqichda ishga tushadi. Hozircha bonus hisoblanmaydi.', backKeyboard()));
-  bot.hears(MENU.info, (ctx) => ctx.reply('AI Subs — Telegram orqali raqamli mahsulotlar do‘koni.\nPhase 1 asoslari saqlangan; hozir Phase 2 universal katalog bosqichi. Katalogni ko‘rish mumkin, xarid va to‘lovlar o‘chirilgan.', backKeyboard()));
+  bot.hears(MENU.info, (ctx) => ctx.reply('AI Subs — Telegram orqali raqamli mahsulotlar do‘koni.\nKatalog, narxlar va sinov buyurtmalarini ko‘rish mumkin. Haqiqiy xarid va to‘lovlar o‘chirilgan.', backKeyboard()));
   bot.on('text', (ctx) => ctx.reply('Quyidagi menyudan bo‘lim tanlang yoki /start buyrug‘ini yuboring.', mainKeyboard()));
 }

@@ -1,3 +1,4 @@
+import { fencePricing } from './pricing/revision.js';
 import mongoose from 'mongoose';
 import { randomUUID } from 'node:crypto';
 import { CatalogCategory as Category, CatalogProduct as Product, CatalogVariant as Variant, CatalogSyncState as SyncState, PricingSettings } from '../models/Catalog.js';
@@ -15,7 +16,8 @@ export class CatalogService {
   #pricing;
   #pending;
   #fullPending;
-  constructor(supplier, pricing = pricingConfig()) { this.#supplier = supplier; this.#pricing = pricing; }
+  #priceService;
+  constructor(supplier, pricing = pricingConfig(), priceService = null) { this.#supplier = supplier; this.#pricing = pricing; this.#priceService = priceService; }
   async #locked(scope, work) {
     try { await SyncState.updateOne({ _id: scope }, { $setOnInsert: { lockUntil: new Date(0) } }, { upsert: true }); }
     catch (error) { if (error.code !== 11000) throw error; }
@@ -27,6 +29,7 @@ export class CatalogService {
     try {
       const snapshot = await work.fetch();
       await mongoose.connection.transaction(async session => {
+        if (this.#priceService) await fencePricing(session, true);
         // Fence stale writers, including a worker whose supplier read outlived the lease.
         const fence = await SyncState.updateOne({ _id: scope, owner, lockUntil: { $gt: new Date() } }, { $set: work.detail ? { detailLastSuccess: new Date(), detailErrorCode: null } : { lastSuccess: new Date(), errorCode: null, unsupportedTypes: snapshot.unsupportedTypes || [] } }, { session });
         if (fence.matchedCount !== 1) throw new LightStoreError('SYNC_BUSY');
@@ -52,7 +55,7 @@ export class CatalogService {
     const settings = await PricingSettings.findById('global').session(session).lean() || {};
     const productIds = [...new Set(snapshot.variants.map(v => v.product))];
     const products = new Map((await Product.find({ _id: { $in: productIds } }).session(session).lean()).map(p => [p._id, p]));
-    const rows = snapshot.variants.map(v => ({ ...v, sellingPriceMinor: v.quoteRequired ? null : sellingPrice(v.supplierPriceMinor, this.#pricing, products.get(v.product), settings)?.unitMinor ?? null, pricedAt: new Date() }));
+    const rows = snapshot.variants.map(v => ({ ...v, sellingPriceMinor: (v.quoteRequired || this.#priceService) ? null : sellingPrice(v.supplierPriceMinor, this.#pricing, products.get(v.product), settings)?.unitMinor ?? null, pricedAt: new Date() }));
     await this.#upsert(Variant, rows, run, session);
   }
   async syncSource(source) {
@@ -159,7 +162,7 @@ export class CatalogService {
     const product = await this.product(variant.product);
     if (!product) return null;
     const settings = await PricingSettings.findById('global').lean() || {};
-    const price = variant.quoteRequired ? null : sellingPrice(variant.supplierPriceMinor, this.#pricing, product, settings, quantity);
+    const price = this.#priceService ? await this.#priceService.quote(id, quantity) : variant.quoteRequired ? null : sellingPrice(variant.supplierPriceMinor, this.#pricing, product, settings, quantity);
     const stale = !variant.syncedAt || Date.now() - variant.syncedAt.getTime() > 15 * 60 * 1000;
     const maximum = Math.min(99, variant.stock ?? 99, variant.maxQuantity ?? 99);
     const selectable = !refreshError && !stale && price !== null && variant.available !== false && maximum > 0 && variant.inputComplete === true && !variant.quoteRequired;
@@ -174,7 +177,14 @@ export class CatalogService {
     ]);
     return { categories, products, variants, detailsLoaded, states, detailErrors, fullSyncRunning: Boolean(this.#fullPending) };
   }
-  async pricingSettings() { return { ...this.#pricing, ...(await PricingSettings.findById('global').lean() || {}) }; }
+  async pricingSettings() {
+    const settings = await PricingSettings.findById('global').lean() || {};
+    if (this.#priceService) {
+      const fx = await this.#priceService.fx.current();
+      return { ...this.#pricing, ...settings, rate: fx.acceptable ? fx.displayRate : null, errors: [...this.#pricing.errors.filter(e => e !== 'RUB_TO_UZS_RATE'), ...fx.errors, ...(!fx.acceptable ? ['FX_UNAVAILABLE'] : [])] };
+    }
+    return { ...this.#pricing, ...settings };
+  }
   async setMarkup(value, productKey) {
     if (!validMarkup(value)) return false;
     if (productKey) {

@@ -1,0 +1,14 @@
+{
+  "serviceId": "srv-dc2508u8bjmc739kl5j0",
+  "replace": false,
+  "envVars": [
+    { "key": "FX_RATE_MODE", "value": "auto" },
+    { "key": "FX_CBU_URL", "value": "https://cbu.uz/uz/arkhiv-kursov-valyut/json/" },
+    { "key": "FX_REFRESH_INTERVAL_MINUTES", "value": "360" },
+    { "key": "FX_MAX_AGE_DAYS", "value": "7" },
+    { "key": "FX_COST_BUFFER_PERCENT", "value": "0" },
+    { "key": "DEFAULT_MARKUP_PERCENT", "value": "20" },
+    { "key": "ROUNDING_INCREMENT_UZS", "value": "1000" },
+    { "key": "AUTO_PURCHASE_ENABLED", "value": "false" }
+  ]
+}
