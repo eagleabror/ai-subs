@@ -1,0 +1,18 @@
+{
+  "ok": true,
+  "currency": "RUB",
+  "variants": 3,
+  "categories": [{
+    "category_id": 9001,
+    "title": "Sinov AI",
+    "products": [{
+      "product_id": 9002,
+      "title": "Gemini AI Plus",
+      "variants": [
+        { "variant_id": 9003, "title": "6 месяцев", "price": 12345, "price_rub": 123.45, "in_stock": 7, "available": true, "max_quantity": 7, "delivery": "auto", "requires_input": false, "input_prompt": "" },
+        { "variant_id": 9004, "title": "12 months", "price": 23456, "price_rub": 234.56, "in_stock": 0, "available": false, "max_quantity": 0, "delivery": "auto", "requires_input": false, "input_prompt": "" },
+        { "variant_id": 9005, "title": "6 oylik", "price": 10000, "price_rub": 100, "in_stock": 0, "available": false, "max_quantity": 0, "delivery": "manual", "requires_input": true, "input_prompt": "Sinov" }
+      ]
+    }]
+  }]
+}
