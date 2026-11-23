@@ -1,6 +1,6 @@
 # Phase 3: CBU kursi, narxlash paneli va sinov buyurtmalari
 
-Bu ish mavjud `main` (Phase 2) ustiga qurilgan. Tekshiruv paytida repozitoriy branchlari va PRlarida alohida Phase 3 wallet/payment implementatsiyasi topilmadi. `User`, `Wallet`, `WalletTransaction`, mavjud order sxemasi va oldingi testlar saqlangan. Noma’lum payment provayderi o‘ylab topilmadi. Order oqimi **sandbox**: haqiqiy mablag‘ yechilmaydi, rezerv qilinmaydi, to‘lov qabul qilinmaydi, supplierga xarid yuborilmaydi.
+Bu ish mavjud universal katalog ustiga qurilgan. `User`, `Wallet`, `WalletTransaction`, mavjud order sxemasi va oldingi testlar saqlangan. [Wallet/to‘lov kengaytmasi](phase3-wallet-payments.md) alohida sinov balansi, admin tasdig‘i va qaytariladigan sinov rezervlarini beradi. Order oqimi **sandbox**: haqiqiy mablag‘ yechilmaydi, rezerv qilinmaydi, real to‘lov qabul qilinmaydi, supplierga xarid yuborilmaydi.
 
 ## Rasmiy kurs manbasi
 
@@ -72,7 +72,7 @@ Tasdiqda yana fresh supplier GET, mavjudlik/qoldiq/miqdor limiti, FX freshness, 
 
 `PricingRevision` yozuvi admin/FX mutatsiyalari va order confirmation tranzaksiyalarini ketma-ketlashtiradi. Quote o‘zgarganini aniqlashda faqat o‘sha effective rate’ning fetch vaqti yoki yetarli qoldiq sonining almashishi yangi narx deb olinmaydi; freshness va stock baribir tekshiriladi.
 
-Orderga supplier narxi, UZS summa, quantity, rate/nominal/surat/maxraj, manba, sana, fetch vaqti, FX buferi, ustama/manbasi, yaxlitlash va `ai-subs-pricing-v3.1` hisob versiyasi snapshot qilinadi. Tasdiqlangan summa va snapshot immutable. Keyingi rate/ustama o‘zgarishi eski orderga ta’sir qilmaydi. `/orders` oxirgi 10 ta sinov buyurtmasini ko‘rsatadi.
+Orderga supplier narxi, UZS summa, quantity, rate/nominal/surat/maxraj, manba, sana, fetch vaqti, FX buferi, ustama/manbasi, yaxlitlash va `ai-subs-pricing-v3.1` hisob versiyasi snapshot qilinadi. Tasdiqlangan summa va snapshot immutable. Keyingi rate/ustama o‘zgarishi eski orderga ta’sir qilmaydi. `/orders` sinov buyurtmalarini sahifalab ko‘rsatadi. Yangi orderlarda summa alohida sinov balansida 30 minut rezerv qilinadi; cancel/expiry rezervni qaytaradi. Haqiqiy walletga yozilmaydi.
 
 Aniq stock/availability bermaydigan yoki supplier quote talab qiladigan Steam/mobile/Telegram turlari universal katalogda qoladi, ammo sandbox tasdiqqa ham majburan o‘tkazilmaydi. Supplier quote/input mapping keyingi integratsiyada hujjat asosida yakunlanishi kerak. Production `Wallet` va `WalletTransaction`ga checkout yozmaydi.
 
@@ -98,4 +98,4 @@ npm run fx:check
 
 Testlar CBU parser/nominal, aniq kasrlar, bayram/stale holati, API/timeout, cache/restart, manual/auto va audit, 6 soat timer, ustama meroslash/reset, yaxlitlash, Telegram admin authorization, supplier sync, o‘zgargan quote, idempotent confirm va real wallet o‘zgarmasligini qamraydi. Barcha Phase 1/2 testlari ham bajariladi. Integratsiya testlari o‘z vaqtinchalik MongoDB replica setida; production bazaga ulanmaydi.
 
-Qolganlari: Render non-secret qiymatlarini Save only bilan kiritish; keyin alohida tasdiqlangan deploy va jonli smoke test; agar boshqa Phase 3 branchdagi payment/wallet kodi mavjud bo‘lsa, uni aniqlash va shu snapshot shartnomasi bilan birlashtirish. Real payment provayderi, supplier purchase/quote va fulfillment bu PRda yoqilmaydi.
+Qolganlari: Render non-secret qiymatlarini Save only bilan kiritish; keyin alohida tasdiqlangan deploy va jonli smoke test. Sinov payment/wallet/order oqimi shu loyihada yaratilgan; real payment provayderi, supplier purchase/quote va fulfillment alohida integratsiyada hujjat va credentiallar asosida ulanadi.
