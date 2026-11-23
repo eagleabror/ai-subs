@@ -34,7 +34,7 @@ test('/start, every menu option, back and unknown text work through Telegraf', a
   await h.send(MENU.referral);
   assert.match(h.replies.at(-1).text, /bonus hisoblanmaydi/);
   await h.send(MENU.info);
-  assert.match(h.replies.at(-1).text, /Phase 1/);
+  assert.match(h.replies.at(-1).text, /sinov buyurtmalarini/);
   await h.send(MENU.back);
   assert.match(h.replies.at(-1).text, /Bosh menyu/);
   await h.send('unknown');

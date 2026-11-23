@@ -1,6 +1,7 @@
+import { CatalogProduct } from '../../models/Catalog.js';
 import { adminOnly } from '../middleware/admin.js';
 const brief = value => String(value).slice(0, 250);
-export function registerCatalogAdmin(bot, catalog, adminId) {
+export function registerCatalogAdmin(bot, catalog, adminId, pricingPanel = null) {
   const restricted = (name, handler) => bot.command(name, adminOnly(adminId), handler);
   restricted('catalog_sync', async ctx => {
     await ctx.reply('To‘liq katalog sinxronlanishi boshlandi. Katta katalog bir necha daqiqa olishi mumkin. Holat: /catalog_status');
@@ -20,11 +21,21 @@ export function registerCatalogAdmin(bot, catalog, adminId) {
   });
   restricted('set_markup', async ctx => {
     const [, value, key, extra] = ctx.message.text.trim().split(/\s+/);
+    if (pricingPanel && value && !extra) {
+      const product = key ? await CatalogProduct.findOne({ key }).lean() : null;
+      if (key && !product) return ctx.reply('Mahsulot topilmadi.');
+      return pricingPanel.propose(ctx, { scope: key ? 'product' : 'global', target: product?._id || 'global', field: 'markup', value });
+    }
     if (!value || extra || !await catalog.setMarkup(value, key)) return ctx.reply('Format: /set_markup <0–1000 foiz> [mahsulot kaliti]. Mahsulot mavjud bo‘lishi kerak.');
     return ctx.reply('Ustama saqlandi. Narxlar ko‘rishda qayta hisoblanadi.');
   });
   for (const [command, enabled] of [['hide_product', false], ['enable_product', true]]) restricted(command, async ctx => {
     const [, key, extra] = ctx.message.text.trim().split(/\s+/);
+    if (pricingPanel && key && !extra) {
+      const product = await CatalogProduct.findOne({ key }).lean();
+      if (!product) return ctx.reply('Mahsulot topilmadi.');
+      return pricingPanel.propose(ctx, { scope: 'product', target: product._id, field: 'enabled', value: enabled });
+    }
     if (!key || extra || !await catalog.setProductEnabled(key, enabled)) return ctx.reply(`Format: /${command} <mahsulot kaliti>. Mahsulot topilmadi.`);
     return ctx.reply(enabled ? 'Mahsulot yoqildi.' : 'Mahsulot yashirildi.');
   });
