@@ -1,0 +1,20 @@
+{
+  "name": "ai-subs",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI Subs — Telegram obuna do‘koni, Phase 1",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "dev": "node --watch --env-file-if-exists=.env src/server.js",
+    "test": "node --test tests/*.test.js",
+    "check": "node scripts/check.js",
+    "supplier:check": "node --env-file-if-exists=.env scripts/check-supplier.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "mongoose": "^8.19.0",
+    "telegraf": "^4.16.3"
+  }
+}
