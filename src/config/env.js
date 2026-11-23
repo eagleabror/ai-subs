@@ -23,7 +23,7 @@ export function loadSupplierConfig(env = process.env) {
     issues.push('LIGHTSTORE_TIMEOUT_MS 100–60000 oralig‘ida bo‘lishi kerak');
   }
   if ((env.AUTO_PURCHASE_ENABLED ?? 'false') !== 'false') {
-    issues.push('Phase 1/2/3 uchun AUTO_PURCHASE_ENABLED faqat false bo‘lishi mumkin');
+    issues.push('Phase 1/2/3/4 uchun AUTO_PURCHASE_ENABLED faqat false bo‘lishi mumkin');
   }
   if (issues.length) throw new ConfigurationError(issues);
   return Object.freeze({ apiKey, baseUrl: baseUrl.href.replace(/\/$/, ''), timeoutMs });
@@ -40,6 +40,7 @@ export function loadConfig(env = process.env) {
     issues.push('ADMIN_TELEGRAM_ID musbat ID yoki vergul bilan ajratilgan IDlar bo‘lishi kerak');
   }
   const port = Number(env.PORT ?? 3000);
+  if (env.FULFILLMENT_ENCRYPTION_KEY && !/^[A-Za-z0-9+/]{43}=$/.test(env.FULFILLMENT_ENCRYPTION_KEY)) issues.push('FULFILLMENT_ENCRYPTION_KEY 32 baytli base64 bo‘lishi kerak');
   if (!Number.isInteger(port) || port < 1 || port > 65535) issues.push('PORT 1–65535 oralig‘ida bo‘lishi kerak');
   if (issues.length) throw new ConfigurationError(issues);
   return Object.freeze({
@@ -51,5 +52,6 @@ export function loadConfig(env = process.env) {
     supplier,
     pricing: pricingConfig(env),
     fx: fxConfig(env),
+    fulfillmentEncryptionKey: env.FULFILLMENT_ENCRYPTION_KEY || null,
   });
 }

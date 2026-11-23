@@ -3,7 +3,7 @@ import { MENU } from '../keyboards/main.js';
 import { formatMoney } from '../../utils/money.js';
 const ROOT = { view: 'categories', page: 0 };
 const NOTICE = 'Xarid hali yoqilmagan. Pul yechilmaydi.';
-export function registerCatalog(bot, catalog, checkoutPanel = null) {
+export function registerCatalog(bot, catalog, checkoutPanel = null, supplierPanel = null) {
   const callbacks = new CallbackStore();
   const searchPending = new Map();
   bot.use((ctx, next) => {
@@ -16,6 +16,7 @@ export function registerCatalog(bot, catalog, checkoutPanel = null) {
     const back = next => [button('⬅️ Orqaga', next)];
     let text, rows = [];
     if (route.view === 'checkout' && checkoutPanel) return checkoutPanel.create(ctx, route.variant, route.quantity);
+    if (route.view === 'supplier' && supplierPanel) return supplierPanel.start(ctx, route.product, route.variant, route.quantity);
     if (route.view === 'categories') {
       const result = await catalog.categories(route.page);
       text = `🛒 Mahsulot kategoriyalari (${result.page + 1}/${result.pages})\n${NOTICE}`;
@@ -37,6 +38,7 @@ export function registerCatalog(bot, catalog, checkoutPanel = null) {
       if (!result.total) text += result.product.quoteRequired ? '\nYakuniy narx alohida hisoblanadi. Bu tur uchun miqdor tanlash hali yoqilmagan.' : '\nHozircha variant mavjud emas.';
       if (result.product.inputSchema?.length) text += `\nTalab qilinadigan maydonlar: ${result.product.inputSchema.map(f => shortText(f.label, 60)).join(', ').slice(0, 700)}`;
       rows = result.items.map(v => [button(`${v.available === false || v.stock === 0 ? '❌ ' : ''}${v.title}${v.region ? ` · ${v.region}` : ''}`, { view: 'detail', variant: v._id, quantity: 1, back: { ...route, page: result.page } })]);
+      if (supplierPanel && result.product.kind === 'steam_refill') rows.push([button('🧾 Supplier hisobini tekshirish', { view: 'supplier', product: result.product._id, variant: null, quantity: 1 })]);
       rows.push(...pageButtons(result, route, button), back(route.back || ROOT));
     } else if (route.view === 'detail') {
       const detail = await catalog.detail(route.variant, route.quantity);
@@ -60,7 +62,8 @@ export function registerCatalog(bot, catalog, checkoutPanel = null) {
         if (controls.length) rows.push(controls);
         if (checkoutPanel) rows.push([button('🧪 Sinov buyurtmasi', { view: 'checkout', variant: v._id, quantity: detail.quantity })]);
       }
-      text += `\n\n${NOTICE}\nBu bosqichda shaxsiy ma’lumot kiritish talab qilinmaydi.`;
+      if (supplierPanel) rows.push([button('🧾 Supplier hisobini tekshirish', { view: 'supplier', product: p._id, variant: v._id, quantity: selectable ? detail.quantity : 1 })]);
+      text += `\n\n${NOTICE}\nSupplier hisobi uchun faqat mahsulot talab qilgan maydonlar so‘raladi; parol yubormang.`;
       rows.push(back(route.back || ROOT));
     } else if (route.view === 'search_prompt') {
       if (searchPending.size >= 2000) searchPending.delete(searchPending.keys().next().value);

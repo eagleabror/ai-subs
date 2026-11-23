@@ -47,4 +47,23 @@ export class PricingService {
     return calculatePrice({ supplierPriceMinor: variant.supplierPriceMinor, quantity, rate: ctx.fx.rate, markup: ctx.markup,
       buffer, rounding: ctx.settings.rounding ?? this.config.rounding, markupSource: ctx.markupSource });
   }
+  async supplierTotal(productId, variantId, supplierTotalMinor, { session } = {}) {
+    let context;
+    if (variantId) context = await this.context(variantId, { session });
+    else {
+      const product = await CatalogProduct.findById(productId).session(session || null).lean();
+      const category = product && await CatalogCategory.findById(product.category).session(session || null).lean();
+      const settings = await PricingSettings.findById('global').session(session || null).lean() || {};
+      if (!product || !category) return null;
+      const choices = [['product', product.markupOverride ?? (!product.markupInherited ? settings.legacyOverrides?.[product.key] : null)], ['category', category.markupOverride], ['global', settings.markup ?? this.config.markup]];
+      const [markupSource, markup] = choices.find(([, v]) => v != null);
+      context = { product, category, settings, markupSource, markup, fx: await this.fx.current({ session }) };
+    }
+    const c = context;
+    if (!c || c.product._id !== productId || !c.product.present || c.product.hidden || !c.product.enabled || !c.category.present || variantId && !c.variant.present || !c.fx.acceptable) return null;
+    const buffer = c.settings.fxBufferPercent ?? this.fx.config.bufferPercent;
+    if (this.config.errors.some(e => e !== 'RUB_TO_UZS_RATE') || !validMarkup(c.markup, { min: this.config.minMarkup, max: this.config.maxMarkup }) || !validMarkup(buffer)) return null;
+    const price = calculatePrice({ supplierPriceMinor: supplierTotalMinor, rate: c.fx.rate, markup: c.markup, markupSource: c.markupSource, buffer, rounding: c.settings.rounding ?? this.config.rounding });
+    return price ? { ...price, priceBasis: 'supplier_total', calculationVersion: 'ai-subs-supplier-v4.1' } : null;
+  }
 }

@@ -1,8 +1,8 @@
-# AI Subs — Phase 3: kurs, narxlash va sinov wallet/to‘lovlar
+# AI Subs — Phase 4: supplier hisobi va xavfsiz fulfillment
 
 Telegram orqali Light Store raqamli mahsulotlari katalogi. Node.js 22+, Express 5, Telegraf 4, MongoDB/Mongoose 8; JavaScript ES Modules.
 
-Katalog Gemini bilan cheklanmaydi. Phase 2 universal katalogi saqlangan; Phase 3 CBU kursi, Telegram narxlash paneli, alohida sinov wallet, admin tasdiqlaydigan sinov to‘lov so‘rovlari va rezervli sinov buyurtmalarini qo‘shadi. Batafsil: [narxlash](docs/phase3-pricing.md) va [wallet/to‘lov qo‘llanmasi](docs/phase3-wallet-payments.md). Mijoz kategoriyalar → mahsulotlar → variantlar → tafsilot → miqdor yo‘lidan foydalanadi. **Haqiqiy xarid, to‘lov va balansdan pul yechish o‘chirilgan.** `AUTO_PURCHASE_ENABLED=true` ishga tushirishni rad etadi. Kod supplierga faqat hujjatlashtirilgan GET so‘rovlarini yuboradi.
+Katalog Gemini bilan cheklanmaydi. Universal katalog, CBU kursi, Telegram narxlash paneli va sinov wallet/to‘lovlar saqlangan. Phase 4 supplier quote/status, durable lifecycle va shifrlangan delivery qatlamini qo‘shadi. Batafsil: [Phase 4 qo‘llanmasi](docs/phase4-supplier-orders.md), [narxlash](docs/phase3-pricing.md), [wallet/to‘lovlar](docs/phase3-wallet-payments.md). **Haqiqiy xarid va real mablag‘ yechish o‘chirilgan.** Runtime faqat hujjatlashtirilgan GET va mablag‘ yechmaydigan `POST /games/quote`ni yuboradi. Purchase endpointlari qat’iy bloklangan; to‘liq fulfillment E2E faqat mocklarda bajariladi.
 
 ## Tuzilma
 
@@ -15,6 +15,9 @@ src/
     middleware/     # Admin ID tekshiruvi
   services/
     lightstore.service.js     # GET, Bearer, timeout, kesh, API tezlik chegarasi
+    supplier/                 # Order adapterlari, API kontraktlari, shifrlash, umumiy limiter
+    supplier-order.service.js # Quote/lifecycle, idempotency, status reconciliation
+    delivery.service.js       # Owner-only delivery, shifrlangan outbox
     catalog/                  # /catalog va /games/* uchun alohida adapterlar
     catalog.service.js        # MongoDB sync, pagination, qidiruv, admin sozlamalari
     pricing.service.js        # Aniq RUB → UZS hisobi
@@ -45,6 +48,7 @@ Phase 1 `Product` modeli o‘zgarmadi; u avval bitta supplier variantini ifodala
 | `LIGHTSTORE_API_BASE_URL` | `https://api.light-store.net/api/v1` |
 | `ADMIN_TELEGRAM_ID` | Mavjud musbat foydalanuvchi ID; bir nechta admin uchun vergul bilan ajratish mumkin |
 | `AUTO_PURCHASE_ENABLED` | Faqat `false` |
+| `FULFILLMENT_ENCRYPTION_KEY` | Phase 4 input/quote/delivery uchun 32 baytli base64 secret; yo‘q bo‘lsa yangi oqim o‘chadi, mavjud bot ishlaydi |
 | `LIGHTSTORE_TIMEOUT_MS` | Odatda `10000`, chegarasi 100–60000 ms |
 | `PORT` | Lokal `3000`; Render bergan qiymat ishlatiladi |
 | `FX_RATE_MODE` | `auto`; bazada saqlangan admin rejimi restartdan keyin saqlanadi |
@@ -70,11 +74,12 @@ Ustama ustuvorligi: variant → mahsulot → kategoriya → umumiy. Asosiy sozla
 git clone https://github.com/eagleabror/ai-subs.git
 cd ai-subs
 # PR ko‘rib chiqilayotganda:
-git switch feat/phase-3-pricing
+git switch feat/phase-4-supplier-orders
 cp .env.example .env
 npm ci
 npm run check
 npm test
+npm run test:supplier
 npm start
 ```
 
@@ -112,7 +117,7 @@ Botga shaxsiy chatda `/start` yuboring. `🛒 Obuna sotib olish` endi barcha kat
 | `/enable_product <kalit>` | Mahsulotni qayta ko‘rsatish; supplierda yo‘q mahsulotni mavjud qilib qo‘ymaydi |
 | `/supplier_status` | Phase 1 Gemini diagnostikasi, o‘zgarmagan |
 
-Oddiy foydalanuvchi bu buyruqlar bilan supplierga yoki boshqaruv yozuvlariga kira olmaydi. Mahsulot sahifasi zarur email/username/region/game ID va boshqa supplier maydonlarini faqat **tavsiflaydi**. Phase 3 sinov checkout ham shaxsiy ma’lumot, parol yoki karta ma’lumotlarini yig‘maydi; yetkazish activation link deb taxmin qilinmaydi.
+Oddiy foydalanuvchi admin buyruqlariga kira olmaydi. Phase 3 sinov checkouti saqlangan. Phase 4 **Supplier hisobini tekshirish** oqimi faqat hujjatlashtirilgan customer maydonlarini so‘raydi, shifrlab saqlaydi va mablag‘ yechmaydi; parol/karta/secret talab qiluvchi mahsulotlar bloklanadi. Yetkazish activation link deb taxmin qilinmaydi. `/supplier_orders` mijozning supplier hisoblari uchun; `/admin`da buyurtma, supplier holati, yetkazish, muammoli buyurtmalar, statistika va doim o‘chiq auto-purchase sozlamalari bor.
 
 ## Light Store ulanishini tekshirish
 
@@ -136,4 +141,4 @@ Bu PR amaldagi Render xizmatini o‘zgartirmaydi va deploy qilmaydi. Keyingi tas
 4. Build/startup loglari, `database_indexes_ready`, `telegram_initialized`, `/health`, `/catalog_status` va `/pricing_settings` ni tekshiring. `/catalog_sync`ni ishga tushirib so‘ng katalog oqimini tekshiring.
 5. Free xizmat uxlaganda polling va davriy sync ham to‘xtaydi. Uyg‘onganda root katalog yangilanadi. Rolling deployda eski va yangi polling jarayonlari vaqtincha to‘qnashishi mumkin (Telegram 409); bitta tokenning faqat bir faol nusxasi bo‘lishini ta’minlang.
 
-Orqaga qaytishda oldingi commitni deploy qilish mumkin: Phase 1 kolleksiyalari o‘zgarmagan. Yangi kolleksiyalarni o‘chirish talab qilinmaydi. Haqiqiy to‘lov, real wallet debit/reservation, supplier quote va yetkazish ulanmagan. Sinov rezervlarini boshqarish uchun yangi kod kerak; eski commit expiry workerini ishga tushirmaydi. Batafsil rollback va xavfsizlik qoidalari [wallet/to‘lov qo‘llanmasida](docs/phase3-wallet-payments.md).
+Rollbackda yangi kolleksiyalar va shifrlash kalitini saqlang. Eski commit yangi supplier/outbox recovery workerlarini bajarmaydi. Haqiqiy payment/purchase/capture hali yo‘q; quote o‘qishlari va mock fulfillment tayyor. Batafsil chegaralar, xavfsiz test va deployment talablari [Phase 4 qo‘llanmasida](docs/phase4-supplier-orders.md).

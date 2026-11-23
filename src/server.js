@@ -4,6 +4,10 @@ import { AdminPricingService } from './services/pricing/admin-pricing.service.js
 import { CheckoutService } from './services/checkout.service.js';
 import { SandboxWalletService } from './services/sandbox-wallet.service.js';
 import { PaymentService } from './services/payment.service.js';
+import { SupplierOrderService } from './services/supplier-order.service.js';
+import { DeliveryService } from './services/delivery.service.js';
+import { FulfillmentCipher } from './services/supplier/crypto.js';
+import { SupplierLimiter } from './services/supplier/limiter.js';
 import { CatalogService } from './services/catalog.service.js';
 import mongoose from 'mongoose';
 import { createApp } from './app.js';
@@ -15,6 +19,7 @@ import { logFailure } from './utils/errors.js';
 
 let catalogTimer;
 let sandboxTimer;
+let supplierTimer;
 let exchangeRates;
 let server;
 let bot;
@@ -26,6 +31,7 @@ async function shutdown(code = 0) {
   stopping = true;
   clearInterval(catalogTimer);
   clearInterval(sandboxTimer);
+  clearInterval(supplierTimer);
   exchangeRates?.stop();
   botReady = false;
   const deadline = setTimeout(() => process.exit(1), 10000);
@@ -50,7 +56,8 @@ try {
   console.info(JSON.stringify({ event: 'http_listening', port: config.port }));
   startupStage = 'database';
   await connectDatabase(config.mongodbUri);
-  const supplier = new LightStoreService(config.supplier);
+  const limiter = new SupplierLimiter(config.supplier.apiKey); await limiter.init();
+  const supplier = new LightStoreService(config.supplier, { limiter });
   exchangeRates = new ExchangeRateService(config.fx);
   await exchangeRates.init();
   const pricing = new PricingService(config.pricing, exchangeRates);
@@ -60,6 +67,9 @@ try {
   const wallets = new SandboxWalletService(), payments = new PaymentService(wallets, config.adminTelegramId);
   await payments.init();
   const checkout = new CheckoutService(pricing, supplier, { wallets });
+  const cipher = new FulfillmentCipher(config.fulfillmentEncryptionKey), delivery = new DeliveryService(cipher);
+  const supplierOrders = new SupplierOrderService({ supplier, pricing, wallets, checkout, cipher, adminIds: config.adminTelegramId });
+  await supplierOrders.init();
   let maintaining = false;
   const maintainSandbox = async () => {
     if (maintaining || stopping) return;
@@ -79,7 +89,17 @@ try {
   catalogTimer = setInterval(() => void syncCatalog(), 5 * 60 * 1000);
   catalogTimer.unref();
   startupStage = 'telegram';
-  bot = createBot({ token: config.telegramBotToken, adminTelegramId: config.adminTelegramId, supplier, catalog, adminPricing, checkout, wallets, payments });
+  bot = createBot({ token: config.telegramBotToken, adminTelegramId: config.adminTelegramId, supplier, catalog, adminPricing, checkout, wallets, payments, supplierOrders, delivery });
+  let supplierWorking = false;
+  const maintainSupplier = async () => {
+    if (supplierWorking || stopping || !cipher.ready) return;
+    supplierWorking = true;
+    try { await supplierOrders.tick(); await delivery.tick((owner, text, options) => bot.telegram.sendMessage(owner, text, options)); }
+    catch (error) { logFailure('supplier_maintenance_failed', error); }
+    finally { supplierWorking = false; }
+  };
+  void maintainSupplier();
+  supplierTimer = setInterval(() => void maintainSupplier(), 10000); supplierTimer.unref();
   // Callback means getMe succeeded, not that every future poll will succeed.
   // launch() remains pending during polling; never await it before serving health.
   void bot.launch({ allowedUpdates: ['message', 'callback_query'] }, () => {
