@@ -1,137 +1,126 @@
-# AI Subs — Phase 1
+# AI Subs — Phase 2: universal katalog
 
-Telegram orqali raqamli obunalar do‘konining boshlang‘ich backend loyihasi. Node.js 22+ (22 LTS tavsiya etiladi), Express 5, Telegraf 4 va Mongoose 8; JavaScript ES Modules.
+Telegram orqali Light Store raqamli mahsulotlari katalogi. Node.js 22+, Express 5, Telegraf 4, MongoDB/Mongoose 8; JavaScript ES Modules.
 
-**Phase 1 faqat katalogni o‘qiydi.** Xarid, to‘lov, balansni to‘ldirish/yechish, buyurtmani bajarish va referal bonuslar yoqilmagan. `AUTO_PURCHASE_ENABLED=true` ishga tushirishni rad etadi. Supplier xarid metodi va to‘lov endpointi umuman mavjud emas.
+Katalog Gemini bilan cheklanmaydi. Mijoz kategoriyalar → mahsulotlar → variantlar → tafsilot → miqdor yo‘lidan foydalanadi. **Xarid, to‘lov va balansdan pul yechish o‘chirilgan.** `AUTO_PURCHASE_ENABLED=true` ishga tushirishni rad etadi. Kod supplierga faqat hujjatlashtirilgan GET so‘rovlarini yuboradi.
 
-## 1. Loyiha tuzilmasi
+## Tuzilma
 
 ```text
 src/
   bot/
-    commands/       # /start va admin /supplier_status
-    keyboards/      # O‘zbekcha bosh menyu va qaytish tugmasi
-    handlers/       # Menyu bo‘limlari
+    commands/       # /start, supplier diagnostikasi, katalog/narx admin buyruqlari
+    handlers/       # Bosh menyu, katalog, qidiruv, miqdor
+    keyboards/      # Menyu va foydalanuvchiga bog‘langan callback tokenlari
     middleware/     # Admin ID tekshiruvi
-    index.js        # Telegraf yig‘ilishi, shaxsiy chat filtri, xatolar
   services/
-    lightstore.service.js # Faqat GET /catalog, parser, Gemini qidiruvi
-    user.service.js       # Ro‘yxatdan o‘tish, balansni o‘qish
-  models/           # User, Product, Order, Wallet, WalletTransaction
-  routes/           # GET /health
-  config/           # Muhit validatsiyasi va MongoDB ulanishi
-  utils/            # Pul formati va xavfsiz xato xabarlari
-  app.js            # Express ilovasini yaratish
-  server.js         # Ishga tushirish va SIGINT/SIGTERM bilan yopish
-scripts/            # Sintaksis va supplier ulanishini tekshirish
-tests/             # Mock testlar va sun’iy katalog namunasi
-docs/              # Tekshirilgan Light Store shartnomasi
-render.yaml         # Render Blueprint
-.github/workflows/  # Node 22 va 24 uchun CI
+    lightstore.service.js     # GET, Bearer, timeout, kesh, API tezlik chegarasi
+    catalog/                  # /catalog va /games/* uchun alohida adapterlar
+    catalog.service.js        # MongoDB sync, pagination, qidiruv, admin sozlamalari
+    pricing.service.js        # Aniq RUB → UZS hisobi
+    user.service.js           # Phase 1 ro‘yxatdan o‘tish va hamyon o‘qish
+  models/           # Eski 5 model + CatalogCategory/Product/Variant, SyncState, PricingSettings
+  config/           # Muhit tekshiruvi, MongoDB ulanishi va indekslar
+  routes/health.js  # Maxfiy ma’lumotsiz readiness
+  utils/            # Pul formati va xavfsiz xato kodlari
+  app.js
+  server.js
+scripts/            # Sintaksis va GET ulanish tekshiruvi
+tests/              # Supplier/Telegram mocklari va lokal MongoDB integratsiya testlari
+docs/lightstore-api.md
 ```
 
-`/start` foydalanuvchini yangilaydi va faqat yangi hamyonni 0 balans bilan yaratadi. Takroriy `/start` mavjud balansni o‘zgartirmaydi. `telegramId` va hamyonning `user` maydoni unique indeksli. Indekslar bot ishga tushishidan oldin tayyorlanadi.
+Phase 1 `Product` modeli o‘zgarmadi; u avval bitta supplier variantini ifodalagan. Yangi katalog alohida kolleksiyalarda saqlanadi. `User`, `Wallet`, `Order`, `WalletTransaction` ma’lumotlari migratsiya qilinmaydi. `/start`, balans, referal, ma’lumot, `/supplier_status` va `/health` saqlangan. `/supplier_status` eski Gemini diagnostikasidir; universal katalog uchun yangi admin buyruqlaridan foydalaning.
 
-Product bitta supplier variantini ifodalaydi. Product narxi RUB kopekda, Wallet/Order/WalletTransaction summalari UZS tiyinda butun, xavfsiz sonlarda saqlanadi; valyuta konvertatsiyasi yo‘q. Product, Order va WalletTransaction uchun hozircha faqat sxemalar bor: avtomatik katalog sinxronlash, buyurtma yoki ledger yozish mavjud emas.
+## Muhit o‘zgaruvchilari
 
-## 2. Muhit o‘zgaruvchilari
-
-| O‘zgaruvchi | Qiymat va vazifasi |
+| O‘zgaruvchi | Vazifasi |
 | --- | --- |
-| `TELEGRAM_BOT_TOKEN` | BotFather bergan maxfiy token; majburiy |
-| `MONGODB_URI` | MongoDB/Atlas ulanish URI; majburiy |
-| `LIGHTSTORE_API_KEY` | Light Store kabinetidagi maxfiy API kaliti; majburiy |
-| `LIGHTSTORE_API_BASE_URL` | `https://api.light-store.net/api/v1`; majburiy |
-| `ADMIN_TELEGRAM_ID` | Adminning musbat raqamli Telegram foydalanuvchi IDsi, username yoki chat ID emas; majburiy |
-| `AUTO_PURCHASE_ENABLED` | Faqat `false`; berilmasa ham `false` |
-| `PORT` | Lokal port, odatda `3000`; Render o‘z `PORT` qiymatini beradi |
-| `LIGHTSTORE_TIMEOUT_MS` | Ixtiyoriy, odatda `10000`; 100–60000 ms |
+| `TELEGRAM_BOT_TOKEN` | Mavjud BotFather tokeni; majburiy, maxfiy |
+| `MONGODB_URI` | MongoDB Atlas yoki replica set URI; majburiy, maxfiy |
+| `LIGHTSTORE_API_KEY` | Mavjud supplier kaliti; majburiy, maxfiy |
+| `LIGHTSTORE_API_BASE_URL` | `https://api.light-store.net/api/v1` |
+| `ADMIN_TELEGRAM_ID` | Mavjud musbat foydalanuvchi ID; bir nechta admin uchun vergul bilan ajratish mumkin |
+| `AUTO_PURCHASE_ENABLED` | Faqat `false` |
+| `LIGHTSTORE_TIMEOUT_MS` | Odatda `10000`, chegarasi 100–60000 ms |
+| `PORT` | Lokal `3000`; Render bergan qiymat ishlatiladi |
+| `RUB_TO_UZS_RATE` | **Tasdiqlangan 1 RUB → UZS kursi. Standart qiymat yo‘q.** Bo‘sh/noto‘g‘ri bo‘lsa narx va miqdor tanlash o‘chadi |
+| `DEFAULT_MARKUP_PERCENT` | Standart ustama, odatda `0`; 0–1000, ko‘pi bilan 6 kasr xonasi |
+| `PRODUCT_MARKUP_OVERRIDE` | Mahsulot kaliti → foiz JSON obyekti, odatda `{}`; kalitni `/product_settings` beradi |
+| `ROUNDING_INCREMENT_UZS` | Yuqoriga yaxlitlash qadami, odatda `1` UZS; musbat, tiyin aniqligida |
 
-`.env.example` ni `.env` ga nusxalang. Tokenlar va URI ichidagi parolni Gitga joylamang. `.env*` fayllar `.gitignore` da, faqat `.env.example` istisno. Loglarda xato kodi chiqariladi, tokenlar, MongoDB URI yoki supplierning xom javobi chiqarilmaydi.
+Mavjud muhit nomlari o‘zgarmadi. `.env.example` nusxasini `.env` qilib, maxfiy qiymatlarni o‘sha yerda saqlang. Ularni Gitga yoki chatga yubormang. Kurs bu loyiha tomonidan jonli manbadan olinmaydi; uni administrator tasdiqlaydi va yangilaydi. Supplierning `steam_refill.rates` maydoni UZS kursi sifatida ishlatilmaydi.
 
-Ishga tushishda muhit formati tekshiriladi. MongoDB ulanishi yoki Telegram autentifikatsiyasi muvaffaqiyatsiz bo‘lsa jarayon xato bilan tugaydi. Supplierga startup paytida avtomatik so‘rov yuborilmaydi: uni alohida tekshiring.
+Ustama ustuvorligi: MongoDBdagi mahsulot ustamasi → env mahsulot ustamasi → MongoDBdagi umumiy ustama → env umumiy ustama. Hisob `BigInt` va o‘nlik satrlardan foydalanadi: RUB kopek × kurs × (1 + ustama/100) = UZS tiyin. Har bir birlik narxi ko‘rsatilgan qadamgacha yuqoriga yaxlitlanib, keyin miqdorga ko‘paytiriladi. Supplier va sotuv narxi alohida saqlanadi; ko‘rishda joriy sozlamalar bilan qayta hisoblanadi. Noto‘g‘ri narx sozlamasi botni yiqitmaydi, narxlashni o‘chiradi.
 
-## 3. Lokal ishga tushirish
+## Lokal ishga tushirish
 
 ```bash
 git clone https://github.com/eagleabror/ai-subs.git
 cd ai-subs
-# Phase 1 PR birlashtirilmagan bo‘lsa:
-git switch feat/phase-1
+# PR ko‘rib chiqilayotganda:
+git switch feat/phase-2-catalog
 cp .env.example .env
 npm ci
-```
-
-`.env` qiymatlarini to‘ldiring. Lokal MongoDBni ishga tushiring yoki alohida Atlas bazasining URI sini kiriting. So‘ng:
-
-```bash
 npm run check
 npm test
 npm start
-# Kod o‘zgarganda qayta ishga tushirish uchun:
-npm run dev
 ```
 
-`npm start` va `npm run dev` ni bir vaqtda ishga tushirmang. Bot long polling ishlatadi: bitta token uchun faqat bitta faol nusxa bo‘lsin. Telegraf polling boshlanishida shu botning eski webhookini olib tashlaydi. Alohida yangi test botidan foydalaning.
+Sinov uchun alohida Telegram bot va alohida baza ishlating. **MongoDB replica set talab qilinadi**: Atlas mos keladi; oddiy standalone `mongod` katalog tranzaksiyalarini bajara olmaydi. Lokal muhitda replica setni sozlang. Testlar o‘zining bir tugunli vaqtinchalik replica setini yaratadi; `.env` dagi bazaga ulanmaydi. Dastlabki test MongoDB 7.0.24 binarini yuklaydi, internet va lokal port ochishga ruxsat kerak. Keyingi testlar `/tmp/ai-subs-test-mongodb` keshidan foydalanadi.
 
-```bash
-curl -i http://localhost:3000/health
-```
+`npm run dev` avtomatik qayta ishga tushiradi. Bitta token uchun bir vaqtning o‘zida faqat bitta polling jarayoni ishlasin. `curl -i http://localhost:3000/health`: MongoDB ulangan va Telegram autentifikatsiyasi bajarilganida 200, aks holda 503. Supplier holati readinessga kiritilmagan; katalog vaqtincha ishlamasa ham qolgan menyu ishlaydi.
 
-MongoDB ulangan va Telegram `getMe` autentifikatsiyasidan o‘tilganida HTTP 200, aks holda 503 qaytadi. `bot: initialized` Telegram boshlang‘ich autentifikatsiyasini bildiradi; supplierning holati yoki har bir polling so‘rovining muvaffaqiyati uchun kafolat emas. Fatal polling xatosi jarayonni yopadi. Endpoint tokenlarni qaytarmaydi. Server `0.0.0.0:$PORT` da tinglaydi.
+## Sinxronlash va saqlash
 
-## 4. Renderga joylashtirish
+- Startup va har 5 daqiqada `/catalog` hamda `/games/catalog` yangilanadi. Bot starti supplier javobini kutmaydi.
+- `/catalog_sync` barcha topilgan games mahsulotlarining tafsilotlarini ham ketma-ket yuklaydi. Katta katalog bir necha daqiqa olishi mumkin; `/catalog_status` holatni ko‘rsatadi. Buyruq pollingni uzoq bloklamaydi. Jarayon qayta ishga tushsa, buyruqni qayta yuboring; upsertlar takrorlanishga chidamli.
+- Games mahsuloti ochilganda ham tafsilotlari yuklanadi/yangilanadi. Shu sabab to‘liq sync tugamaguncha variantlar soni qisman bo‘lishi mumkin. Yashirilgan mahsulotlar to‘liq sync’da yangilanadi, mijozga chiqmaydi.
+- IDlar `source + tur + supplier ID` bilan nomlanadi, unique indekslar dublikatga yo‘l qo‘ymaydi. Games bo‘limlari uchun supplier category ID bermaydi: mahalliy bo‘lim kaliti ishlatiladi, supplier ID `null` qoladi. Steam refill uchun ham sun’iy supplier product/variant ID yaratilmaydi.
+- Har bir manba va games mahsuloti muvaffaqiyatli, to‘liq tekshirilgan snapshotdan keyin tranzaksiyada yangilanadi. Oldingi qoldiq/narx yangilanadi; yo‘qolgan yozuvlar `present=false` bo‘ladi. Jismoniy o‘chirish yo‘q. API/schema/DB xatosida oldingi snapshot saqlanadi. Ikki manbaning holati mustaqil.
+- MongoDB lease va tranzaksiya eski worker yozuvlarini to‘sadi. Mahalliy `hidden`, `enabled`, `markupOverride` supplier sync bilan almashtirilmaydi.
+- HTTP kesh 30 soniya, eng ko‘pi 200 javob; parallel bir xil GET birlashtiriladi. Umumiy navbatda so‘rov oralig‘i kamida 1.1 soniya (hujjatdagi 60/min chegarasidan past), 20 ta kutilayotgan yo‘l chegarasi bor. 429 da `Retry-After` hurmat qilinadi; bo‘lmasa 60 soniya tanaffus. Tanaffus paytida yangi so‘rov tezda xavfsiz xato qaytaradi, APIga bormaydi.
+- 15 daqiqadan eski variant, yo‘q narx, tugagan qoldiq, to‘liq bo‘lmagan input sxema yoki quote talab qiluvchi variantda miqdor tanlash o‘chadi. UI miqdori 1–99, supplier `stock`/`max_quantity` chegarasidan oshmaydi. Bu faqat ko‘rish hisobidir; checkout yo‘q.
 
-1. Phase 1 PRni ko‘rib chiqing; `main` ga birlashtiring yoki sinov uchun Blueprint manbasida `feat/phase-1` ni tanlang.
-2. MongoDB Atlasda alohida baza/foydalanuvchi yarating va Render chiqish IP manzillariga ulanish ruxsatini bering.
-3. Render Dashboard → **New → Blueprint**, `eagleabror/ai-subs` repozitoriysini tanlang. `render.yaml` bitta Node web service yaratish uchun tayyorlangan.
-4. `TELEGRAM_BOT_TOKEN`, `MONGODB_URI`, `LIGHTSTORE_API_KEY`, `ADMIN_TELEGRAM_ID` ni kiriting. `sync: false` ilk yaratilishda so‘raladi; keyingi o‘zgarishlar xizmatning Environment bo‘limida kiritiladi.
-5. Compute plan faylda ataylab ko‘rsatilmagan: Render tanlovini va narxini tekshiring. Uzluksiz polling uchun uxlamaydigan pullik xizmat tanlang; free xizmatning uyqu holati bot javoblarini to‘xtatadi.
-6. Build: `npm ci && npm run check && npm test`; Start: `npm start`; Health check: `/health`; instance soni: **1**. Avtomatik deploy o‘chirilgan.
-7. Deploydan keyin `https://<xizmat>.onrender.com/health`, `/start` va admin `/supplier_status` ni tekshiring.
+## Telegram va admin tekshiruvi
 
-**Qayta deploy cheklovi:** Render rolling deploy paytida eski va yangi jarayon vaqtincha birga ishlashi mumkin. Long polling bir tokenning ikki nusxasini qo‘llamaydi (Telegram 409). Phase 1da yangilashni qisqa to‘xtash bilan bajaring: eski xizmatni to‘xtating/suspend qiling, keyin yangisini ishga tushiring; lokal bot ham o‘chiq bo‘lsin. Agar suspend/resume oqimi yangi commitni qo‘llamasa, eski xizmat to‘xtagan holda yangi Blueprint xizmatini yarating. Production uchun uzluksiz rolling deploy va ko‘paytirish kerak bo‘lsa, keyingi bosqichda webhook yoki bitta polling egasini ta’minlovchi mexanizm kerak.
+Botga shaxsiy chatda `/start` yuboring. `🛒 Obuna sotib olish` endi barcha kategoriyalarni ochadi. Sahifa 6 ta elementdan iborat; keyingi/oldingi/orqaga tugmalari bor. `🔎 Mahsulot qidirish` yoki `/search` orqali nom bo‘yicha qidiring. Brendlar o‘zgartirilmaydi; qidiruv regex belgilarini oddiy matn sifatida oladi. Qidiruv holati 5 daqiqa, callbacklar 15 daqiqa yashaydi; restartdan keyin katalogni qayta ochish kerak. Callbacklar qisqa, taxmin qilib bo‘lmaydigan va foydalanuvchi IDga bog‘langan.
 
-Bu o‘zgarishlar Render xizmatini avtomatik yaratmaydi va deploy qilmaydi. Konfiguratsiya rasmiy [Blueprint hujjati](https://render.com/docs/blueprint-spec) asosida tayyorlangan; [JSON sxema](https://render.com/schema/render.yaml.json) orqali tekshirilgan.
+| Admin buyrug‘i | Natija |
+| --- | --- |
+| `/catalog_sync` | Ikkala katalog va barcha games tafsilotlarini sinxronlash |
+| `/catalog_status` | Sonlar, oxirgi muvaffaqiyat, xavfsiz API/schema xato kodlari, noma’lum bo‘limlar |
+| `/products_count` | Kategoriya, mahsulot, saqlangan variant va yuklangan games tafsilotlari soni |
+| `/pricing_settings` | Kurs, umumiy ustama, yaxlitlash va xato sozlamalari |
+| `/product_settings <nom yoki kalit>` | Dastlabki 6 mos mahsulotning boshqaruv kaliti, holati, ustamasi va tafsilot xatosi; yashirilganlar ham ko‘rinadi |
+| `/set_markup <foiz>` | Umumiy ustamani MongoDBga saqlash |
+| `/set_markup <foiz> <kalit>` | Bitta mahsulot ustamasi |
+| `/hide_product <kalit>` | Mahsulotni yashirish va o‘chirish |
+| `/enable_product <kalit>` | Mahsulotni qayta ko‘rsatish; supplierda yo‘q mahsulotni mavjud qilib qo‘ymaydi |
+| `/supplier_status` | Phase 1 Gemini diagnostikasi, o‘zgarmagan |
 
-## 5. Telegram botini tekshirish
+Oddiy foydalanuvchi bu buyruqlar bilan supplierga yoki boshqaruv yozuvlariga kira olmaydi. Mahsulot sahifasi zarur email/username/region/game ID va boshqa supplier maydonlarini faqat **tavsiflaydi**. Phase 2 shaxsiy ma’lumot, parol yoki karta ma’lumotlarini yig‘maydi; yetkazish activation link deb taxmin qilinmaydi.
 
-Botga **shaxsiy chatda** yozing; guruhlardagi xabarlar e’tiborsiz qoldiriladi.
+## Light Store ulanishini tekshirish
 
-1. `/start`: o‘zbekcha salomlashuv va to‘rtta menyu tugmasi chiqadi; user/hamyon yaratiladi.
-2. `🛒 Obuna sotib olish`: Gemini AI Plus 6 oylik variant bor-yo‘qligini ko‘rsatadi; xarid qilmaydi.
-3. `💼 Balansim`: mavjud balansni ko‘rsatadi; o‘zgartirmaydi.
-4. `👥 Referal`: dastur hali yoqilmaganligi xabari.
-5. `ℹ️ Ma'lumot`: loyiha va sinov bosqichi haqida ma’lumot.
-6. `⬅️ Bosh menyu`: asosiy menyuga qaytadi.
-7. Admin `/supplier_status`: mos variantlarning product/variant IDsi, supplier narxi va qoldig‘i. Oddiy foydalanuvchi uchun taqiqlanadi va API chaqirilmaydi.
-8. `/start` ni qayta yuboring: balans o‘zgarmasligini tekshiring.
-
-Avtomatik testlar Telegram xabarlarini Telegraf middleware orqali mock qilib o‘tkazadi. Haqiqiy Telegramga xabar yuborilmaydi.
-
-## 6. Light Store ulanishini tekshirish
-
-Rasmiy hujjat: https://light-store.net/api/. Parser va cheklovlar: [docs/lightstore-api.md](docs/lightstore-api.md).
-
-Tarmoq va credentials talab qilmaydigan supplier testlari:
-
-```bash
-node --test tests/lightstore.test.js
-```
-
-Kalit kiritilgandan keyin jonli **faqat o‘qish** tekshiruvi:
+Rasmiy hujjat: https://light-store.net/api/. Tekshirilgan yo‘llar va cheklovlar: [API shartnomasi](docs/lightstore-api.md).
 
 ```bash
 npm run supplier:check
 ```
 
-Bu buyruq uchun faqat `LIGHTSTORE_API_KEY`, `LIGHTSTORE_API_BASE_URL` kerak; `AUTO_PURCHASE_ENABLED` false bo‘lishi shart. Telegram va MongoDBga ulanmaydi. Katalog mahsulotlari soni va mos Gemini variantlarini chiqaradi. Narx `supplierPriceMinor` maydonida RUB kopekda keladi. Kalitni konsolga chiqarmaydi. Botdagi `/supplier_status` ham shu servisni ishlatadi.
+Bu buyruq faqat ikki asosiy katalogni GET qiladi, kategoriya nomlari va sonlarini chiqaradi. MongoDB/Telegram kerak emas; `LIGHTSTORE_API_KEY` va bazaviy URL kerak. Games tafsilotlarini olmagani uchun uning variantlar soni yakuniy emas; buni chiqishdagi `variantsComplete` bildiradi. To‘liq sonlar uchun botda `/catalog_sync`, keyin `/products_count` ishlating. Kalit va xom xato javoblari chiqarilmaydi. Ulangan bot ishlayotganda diagnostikani ko‘p marta parallel ishga tushirmang: 60/min limit API kaliti bo‘yicha umumiy.
 
-Mock testlar Bearer sarlavhasi, yagona GET yo‘li, parser, ID/narx/qoldiq, 6 oylik qidiruv, bo‘sh katalog, parallel so‘rovlarni birlashtirish, kesh, HTTP/tarmoq/JSON/sxema xatolari va timeoutni tekshiradi. Health test lokal vaqtinchalik HTTP port ochadi, tashqi servisga bormaydi. Mongoose testlari bazasiz validatsiya va mock orqali insert-only hamyon yaratishni tekshiradi; ular haqiqiy MongoDB integratsiya testi emas.
+Test fixturelarida **7 kategoriya, 14 mahsulot, barcha detail javoblari yuklangach 15 variant** bor. Bu jonli katalog statistikasi emas. Ushbu ishlab chiqish muhitida supplier kaliti yo‘q; real kategoriya/mahsulot/variant soni tasdiqlanmagan. Fixturelar asosiy katalogning 2 kategoriyasi va games’ning 5 hujjatlashtirilgan bo‘limini qoplaydi.
 
-## Integratsiya holati va keyingi ishlar
+## Render va deployment ta’siri
 
-- Kod hujjatdagi katalog tuzilmasiga mos; test fixturelari sun’iy, real narx va ID emas.
-- Haqiqiy Telegram/Atlas/Light Store ulanishi credentials bo‘lmagani uchun tekshirilmagan.
-- Ishga tushirish uchun token, MongoDB URI, supplier kaliti va admin IDni to‘ldirish kerak.
-- Keyingi bosqich: haqiqiy katalog bilan nomlarni tasdiqlash, zarur bo‘lsa Product sinxronlash, sotuv narxi/valyuta siyosati, to‘lovlar, atomik wallet ledger, idempotent buyurtma va yetkazish, referal qoidalari, webhook. Bular Phase 1ga kiritilmagan.
+Bu PR amaldagi Render xizmatini o‘zgartirmaydi va deploy qilmaydi. Keyingi tasdiqlangan deploy uchun mavjud **ai-subs-bot / Free** xizmatidan foydalaning; yangi resurs yoki pullik Blueprint kerak emas.
+
+1. PRni ko‘rib chiqib `main`ga birlashtiring. Mavjud Environment qiymatlarini saqlang; tasdiqlangan `RUB_TO_UZS_RATE` hamda kerakli ustama/yaxlitlash qiymatlarini qo‘shing. `AUTO_PURCHASE_ENABLED=false` qolsin.
+2. Mavjud Build `npm ci`, Start `npm start`, health check `/health`, branch `main`, instance **1** bo‘lsin. Testlar CI’da bajariladi; production ishga tushishi test MongoDBsini talab qilmaydi. Repositorydagi oldingi Phase 1 Blueprintni qayta qo‘llash shart emas.
+3. Deploy yangi katalog kolleksiyalari/indekslarini yaratadi. Eski balans, order va to‘lov yozuvlari o‘zgarmaydi. Kurs yo‘q bo‘lsa bot ishlaydi, sotuv narxi ko‘rsatilmaydi.
+4. Build/startup loglari, `database_indexes_ready`, `telegram_initialized`, `/health`, `/catalog_status` va `/pricing_settings` ni tekshiring. `/catalog_sync`ni ishga tushirib so‘ng katalog oqimini tekshiring.
+5. Free xizmat uxlaganda polling va davriy sync ham to‘xtaydi. Uyg‘onganda root katalog yangilanadi. Rolling deployda eski va yangi polling jarayonlari vaqtincha to‘qnashishi mumkin (Telegram 409); bitta tokenning faqat bir faol nusxasi bo‘lishini ta’minlang.
+
+Orqaga qaytishda oldingi commitni deploy qilish mumkin: Phase 1 kolleksiyalari o‘zgarmagan. Yangi kolleksiyalarni o‘chirish talab qilinmaydi. Keyingi bosqichdagi haqiqiy checkout, quote, to‘lov, wallet ledger va yetkazish Phase 2 tarkibiga kirmaydi.
