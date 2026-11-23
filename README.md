@@ -1,8 +1,8 @@
-# AI Subs — Phase 3: avtomatik kurs va admin narxlash
+# AI Subs — Phase 3: kurs, narxlash va sinov wallet/to‘lovlar
 
 Telegram orqali Light Store raqamli mahsulotlari katalogi. Node.js 22+, Express 5, Telegraf 4, MongoDB/Mongoose 8; JavaScript ES Modules.
 
-Katalog Gemini bilan cheklanmaydi. Phase 2 universal katalogi saqlangan; Phase 3 CBU kursi, Telegram narxlash paneli va pul yechmaydigan sinov buyurtmalarini qo‘shadi. Batafsil: [Phase 3 qo‘llanmasi](docs/phase3-pricing.md). Mijoz kategoriyalar → mahsulotlar → variantlar → tafsilot → miqdor yo‘lidan foydalanadi. **Xarid, to‘lov va balansdan pul yechish o‘chirilgan.** `AUTO_PURCHASE_ENABLED=true` ishga tushirishni rad etadi. Kod supplierga faqat hujjatlashtirilgan GET so‘rovlarini yuboradi.
+Katalog Gemini bilan cheklanmaydi. Phase 2 universal katalogi saqlangan; Phase 3 CBU kursi, Telegram narxlash paneli, alohida sinov wallet, admin tasdiqlaydigan sinov to‘lov so‘rovlari va rezervli sinov buyurtmalarini qo‘shadi. Batafsil: [narxlash](docs/phase3-pricing.md) va [wallet/to‘lov qo‘llanmasi](docs/phase3-wallet-payments.md). Mijoz kategoriyalar → mahsulotlar → variantlar → tafsilot → miqdor yo‘lidan foydalanadi. **Haqiqiy xarid, to‘lov va balansdan pul yechish o‘chirilgan.** `AUTO_PURCHASE_ENABLED=true` ishga tushirishni rad etadi. Kod supplierga faqat hujjatlashtirilgan GET so‘rovlarini yuboradi.
 
 ## Tuzilma
 
@@ -95,7 +95,7 @@ Sinov uchun alohida Telegram bot va alohida baza ishlating. **MongoDB replica se
 
 ## Telegram va admin tekshiruvi
 
-`/admin` → **Narxlarni boshqarish** orqali kurs, global/kategoriya/mahsulot/variant ustamasi, yaxlitlash va tarixni oching. O‘zgarishni kiriting, oldindan hisobni ko‘ring, so‘ng tasdiqlang. `/orders` oxirgi sinov buyurtmalarini ko‘rsatadi.
+`/admin` → **Narxlarni boshqarish** orqali kurs, global/kategoriya/mahsulot/variant ustamasi, yaxlitlash va tarixni oching. O‘zgarishni kiriting, oldindan hisobni ko‘ring, so‘ng tasdiqlang. `/wallet` va `/topup` sinov balansini boshqaradi; `/admin → To‘lov so‘rovlari` yoki `/payments` admin tasdig‘i uchun. `/orders` sinov buyurtmalarini sahifalab ko‘rsatadi va bekor qilish imkonini beradi. Buyurtma summasi faqat sinov balansida 30 minut band bo‘ladi; bekor qilish/expiry rezervni qaytaradi. Pul yubormang.
 
 Botga shaxsiy chatda `/start` yuboring. `🛒 Obuna sotib olish` endi barcha kategoriyalarni ochadi. Sahifa 6 ta elementdan iborat; keyingi/oldingi/orqaga tugmalari bor. `🔎 Mahsulot qidirish` yoki `/search` orqali nom bo‘yicha qidiring. Brendlar o‘zgartirilmaydi; qidiruv regex belgilarini oddiy matn sifatida oladi. Qidiruv holati 5 daqiqa, callbacklar 15 daqiqa yashaydi; restartdan keyin katalogni qayta ochish kerak. Callbacklar qisqa, taxmin qilib bo‘lmaydigan va foydalanuvchi IDga bog‘langan.
 
@@ -136,4 +136,4 @@ Bu PR amaldagi Render xizmatini o‘zgartirmaydi va deploy qilmaydi. Keyingi tas
 4. Build/startup loglari, `database_indexes_ready`, `telegram_initialized`, `/health`, `/catalog_status` va `/pricing_settings` ni tekshiring. `/catalog_sync`ni ishga tushirib so‘ng katalog oqimini tekshiring.
 5. Free xizmat uxlaganda polling va davriy sync ham to‘xtaydi. Uyg‘onganda root katalog yangilanadi. Rolling deployda eski va yangi polling jarayonlari vaqtincha to‘qnashishi mumkin (Telegram 409); bitta tokenning faqat bir faol nusxasi bo‘lishini ta’minlang.
 
-Orqaga qaytishda oldingi commitni deploy qilish mumkin: Phase 1 kolleksiyalari o‘zgarmagan. Yangi kolleksiyalarni o‘chirish talab qilinmaydi. Haqiqiy to‘lov, wallet debit/reservation, supplier quote va yetkazish ulanmagan. Sinov buyurtmasi hech qanday mablag‘ni ushlamaydi.
+Orqaga qaytishda oldingi commitni deploy qilish mumkin: Phase 1 kolleksiyalari o‘zgarmagan. Yangi kolleksiyalarni o‘chirish talab qilinmaydi. Haqiqiy to‘lov, real wallet debit/reservation, supplier quote va yetkazish ulanmagan. Sinov rezervlarini boshqarish uchun yangi kod kerak; eski commit expiry workerini ishga tushirmaydi. Batafsil rollback va xavfsizlik qoidalari [wallet/to‘lov qo‘llanmasida](docs/phase3-wallet-payments.md).
