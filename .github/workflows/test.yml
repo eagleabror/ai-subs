@@ -1,4 +1,4 @@
-name: Phase 1 tekshiruvlari
+name: AI Subs tekshiruvlari
 on: [push, pull_request]
 permissions:
   contents: read

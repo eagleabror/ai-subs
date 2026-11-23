@@ -1,3 +1,4 @@
+import { pricingConfig } from '../services/pricing.service.js';
 export class ConfigurationError extends Error {
   constructor(issues) {
     super(`Sozlamalarni tekshiring: ${issues.join('; ')}`);
@@ -21,7 +22,7 @@ export function loadSupplierConfig(env = process.env) {
     issues.push('LIGHTSTORE_TIMEOUT_MS 100–60000 oralig‘ida bo‘lishi kerak');
   }
   if ((env.AUTO_PURCHASE_ENABLED ?? 'false') !== 'false') {
-    issues.push('Phase 1 uchun AUTO_PURCHASE_ENABLED faqat false bo‘lishi mumkin');
+    issues.push('Phase 1/2 uchun AUTO_PURCHASE_ENABLED faqat false bo‘lishi mumkin');
   }
   if (issues.length) throw new ConfigurationError(issues);
   return Object.freeze({ apiKey, baseUrl: baseUrl.href.replace(/\/$/, ''), timeoutMs });
@@ -33,8 +34,9 @@ export function loadConfig(env = process.env) {
   try { supplier = loadSupplierConfig(env); } catch (error) { issues.push(error.message); }
   if (!/^\d+:[A-Za-z0-9_-]+$/.test(env.TELEGRAM_BOT_TOKEN ?? '')) issues.push('TELEGRAM_BOT_TOKEN kerak yoki formati noto‘g‘ri');
   if (!/^mongodb(?:\+srv)?:\/\/\S+$/.test(env.MONGODB_URI ?? '')) issues.push('MONGODB_URI kerak yoki formati noto‘g‘ri');
-  if (!/^[1-9]\d*$/.test(env.ADMIN_TELEGRAM_ID ?? '') || !Number.isSafeInteger(Number(env.ADMIN_TELEGRAM_ID))) {
-    issues.push('ADMIN_TELEGRAM_ID musbat Telegram foydalanuvchi ID bo‘lishi kerak');
+  const adminIds = (env.ADMIN_TELEGRAM_ID ?? '').split(',').map(id => id.trim());
+  if (adminIds.some(id => !/^[1-9]\d*$/.test(id) || !Number.isSafeInteger(Number(id)))) {
+    issues.push('ADMIN_TELEGRAM_ID musbat ID yoki vergul bilan ajratilgan IDlar bo‘lishi kerak');
   }
   const port = Number(env.PORT ?? 3000);
   if (!Number.isInteger(port) || port < 1 || port > 65535) issues.push('PORT 1–65535 oralig‘ida bo‘lishi kerak');
@@ -46,5 +48,6 @@ export function loadConfig(env = process.env) {
     autoPurchaseEnabled: false,
     port,
     supplier,
+    pricing: pricingConfig(env),
   });
 }

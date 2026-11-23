@@ -6,7 +6,7 @@ import { MENU } from '../src/bot/keyboards/main.js';
 function harness() {
   const calls = { register: 0, supplier: 0, wallet: 0 };
   const replies = [];
-  const bot = createBot({ token: '123:mock', adminTelegramId: '42',
+  const bot = createBot({ catalog: { categories: async () => ({ items: [], total: 0, page: 0, pages: 1 }) }, token: '123:mock', adminTelegramId: '42',
     users: { register: async () => { calls.register++; }, getWallet: async () => { calls.wallet++; return { balanceMinor: 50000, currency: 'UZS' }; } },
     supplier: { findGeminiSixMonthOffers: async () => { calls.supplier++; return [{ productId: 1, variantId: 2, title: 'Gemini AI Plus 6 months', stock: 2, available: true, supplierPriceMinor: 12345, currency: 'RUB' }]; } },
   });

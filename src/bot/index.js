@@ -1,3 +1,6 @@
+import { CatalogService } from '../services/catalog.service.js';
+import { registerCatalog } from './handlers/catalog.js';
+import { registerCatalogAdmin } from './commands/catalog-admin.js';
 import { Telegraf } from 'telegraf';
 import { userService } from '../services/user.service.js';
 import { logFailure } from '../utils/errors.js';
@@ -6,15 +9,17 @@ import { startCommand } from './commands/start.js';
 import { supplierStatusCommand } from './commands/supplier-status.js';
 import { registerMenu } from './handlers/menu.js';
 
-export function createBot({ token, adminTelegramId, supplier, users = userService }) {
+export function createBot({ token, adminTelegramId, supplier, catalog = new CatalogService(supplier), users = userService }) {
   const bot = new Telegraf(token);
   bot.use((ctx, next) => {
     if (ctx.chat?.type !== 'private' || !ctx.from || ctx.from.is_bot) return;
     return next();
   });
+  registerCatalog(bot, catalog);
   bot.start(startCommand(users));
   bot.command('supplier_status', adminOnly(adminTelegramId), supplierStatusCommand(supplier));
-  registerMenu(bot, { supplier, users });
+  registerCatalogAdmin(bot, catalog, adminTelegramId);
+  registerMenu(bot, { users });
   bot.catch(async (error, ctx) => {
     logFailure('bot_update_failed', error);
     try { await ctx.reply('Xatolik yuz berdi. Birozdan keyin qayta urinib ko‘ring.'); }

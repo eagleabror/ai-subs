@@ -1,3 +1,4 @@
+import { CatalogService } from './services/catalog.service.js';
 import mongoose from 'mongoose';
 import { createApp } from './app.js';
 import { createBot } from './bot/index.js';
@@ -6,6 +7,7 @@ import { connectDatabase } from './config/database.js';
 import { LightStoreService } from './services/lightstore.service.js';
 import { logFailure } from './utils/errors.js';
 
+let catalogTimer;
 let server;
 let bot;
 let botReady = false;
@@ -14,6 +16,7 @@ let startupStage = 'configuration';
 async function shutdown(code = 0) {
   if (stopping) return;
   stopping = true;
+  clearInterval(catalogTimer);
   botReady = false;
   const deadline = setTimeout(() => process.exit(1), 10000);
   deadline.unref();
@@ -37,11 +40,18 @@ try {
   console.info(JSON.stringify({ event: 'http_listening', port: config.port }));
   startupStage = 'database';
   await connectDatabase(config.mongodbUri);
+  const supplier = new LightStoreService(config.supplier);
+  const catalog = new CatalogService(supplier, config.pricing);
+  if (config.pricing.errors.length) console.warn(JSON.stringify({ event: 'catalog_pricing_disabled', fields: config.pricing.errors }));
+  const syncCatalog = () => catalog.sync().catch(error => logFailure('catalog_sync_failed', error));
+  void syncCatalog();
+  catalogTimer = setInterval(() => void syncCatalog(), 5 * 60 * 1000);
+  catalogTimer.unref();
   startupStage = 'telegram';
-  bot = createBot({ token: config.telegramBotToken, adminTelegramId: config.adminTelegramId, supplier: new LightStoreService(config.supplier) });
+  bot = createBot({ token: config.telegramBotToken, adminTelegramId: config.adminTelegramId, supplier, catalog });
   // Callback means getMe succeeded, not that every future poll will succeed.
   // launch() remains pending during polling; never await it before serving health.
-  void bot.launch({ allowedUpdates: ['message'] }, () => {
+  void bot.launch({ allowedUpdates: ['message', 'callback_query'] }, () => {
     botReady = true;
     console.info(JSON.stringify({ event: 'telegram_initialized' }));
   }).catch((error) => {

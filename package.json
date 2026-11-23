@@ -1,10 +1,12 @@
 {
   "name": "ai-subs",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "AI Subs — Telegram obuna do‘koni, Phase 1",
+  "description": "AI Subs — universal raqamli mahsulotlar katalogi, Phase 2",
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node --env-file-if-exists=.env src/server.js",
     "dev": "node --watch --env-file-if-exists=.env src/server.js",
@@ -16,5 +18,8 @@
     "express": "^5.1.0",
     "mongoose": "^8.19.0",
     "telegraf": "^4.16.3"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^10.4.3"
   }
 }
