@@ -14,7 +14,7 @@ function sampleText(sample) {
   const { variant: v, context: c, price: p } = sample;
   return `${shortText(v.title, 100)}${v.region ? ` · ${shortText(v.region, 40)}` : ''}\nSupplier narxi: ${formatMoney(v.supplierPriceMinor, 'RUB')}\nKurs: ${c?.fx.displayRate || 'yaroqli kurs yo‘q'} UZS\nKonvertatsiya xarajati: ${p ? formatMoney(p.convertedCostMinor, 'UZS') : 'hisoblanmadi'}\nFX buferli xarajat: ${p ? formatMoney(p.bufferedCostMinor, 'UZS') : 'hisoblanmadi'}\nUstama: ${c?.markup ?? '—'}% (${labels[c?.markupSource] || '—'})\nSotuv narxi: ${p ? formatMoney(p.unitMinor, 'UZS') : 'o‘chirilgan'}`;
 }
-export function registerAdminPricing(bot, service, adminIds, walletPanel) {
+export function registerAdminPricing(bot, service, adminIds, walletPanel, supplierPanel) {
   const store = new CallbackStore({ prefix: 'adm', ttl: 5 * 60000 }), pending = new Map();
   const auth = adminOnly(adminIds);
   async function render(ctx, route, editing = false) {
@@ -25,6 +25,7 @@ export function registerAdminPricing(bot, service, adminIds, walletPanel) {
     if (route.view === 'home') {
       text = 'Administrator paneli'; rows = [[button('💰 Narxlarni boshqarish', PRICE_HOME)]];
       if (walletPanel) rows.push([walletPanel.adminButton(ctx)]);
+      if (supplierPanel) rows.push(...supplierPanel.adminButtons(ctx));
     } else if (route.view === 'pricing') {
       text = '💰 NARXLARNI BOSHQARISH';
       rows = [[button('💱 RUB/UZS kursi', { view: 'fx' })], [button('📊 Umumiy ustama', { view: 'global' })],
